@@ -1,0 +1,224 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Customer {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  name         String
+  countryCode  String   @map("country_code") @db.Char(2)
+  tags         String[] @default([])
+  createdAt    DateTime @default(now()) @map("created_at")
+  orders       Order[]
+
+  @@map("customers")
+}
+
+enum OrderStatus {
+  placed
+  paid
+  fulfilled
+  shipped
+  delivered
+  canceled
+  refunded
+}
+
+model Order {
+  id          String      @id @default(uuid()) @db.Uuid
+  customerId  String      @map("customer_id") @db.Uuid
+  status      OrderStatus
+  totalAmount Decimal     @map("total_amount") @db.Decimal(12, 2)
+  currency    String      @db.Char(3)
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+  
+  customer    Customer     @relation(fields: [customerId], references: [id])
+  items       OrderItem[]
+  notes       OrderNote[]
+  shipments   Shipment[]
+  returns     Return[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String  @id @default(uuid()) @db.Uuid
+  orderId   String  @map("order_id") @db.Uuid
+  sku       String
+  name      String
+  qty       Int
+  unitPrice Decimal @map("unit_price") @db.Decimal(12, 2)
+  
+  order     Order   @relation(fields: [orderId], references: [id])
+
+  @@map("order_items")
+}
+
+enum NoteVisibility {
+  internal
+  public
+}
+
+model OrderNote {
+  id         String         @id @default(uuid()) @db.Uuid
+  orderId    String         @map("order_id") @db.Uuid
+  visibility NoteVisibility
+  note       String
+  createdAt  DateTime       @default(now()) @map("created_at")
+  
+  order      Order          @relation(fields: [orderId], references: [id])
+
+  @@map("order_notes")
+}
+
+enum ShipmentStatus {
+  label_created
+  in_transit
+  delayed
+  out_for_delivery
+  delivered
+  exception
+}
+
+model Shipment {
+  id                    String          @id @default(uuid()) @db.Uuid
+  orderId               String          @map("order_id") @db.Uuid
+  carrier               String
+  trackingId            String          @unique @map("tracking_id")
+  status                ShipmentStatus
+  estimatedDeliveryDate DateTime?       @map("estimated_delivery_date") @db.Date
+  lastUpdateAt          DateTime        @default(now()) @map("last_update_at")
+  
+  order                 Order           @relation(fields: [orderId], references: [id])
+  events                ShipmentEvent[]
+
+  @@map("shipments")
+}
+
+model ShipmentEvent {
+  id         String   @id @default(uuid()) @db.Uuid
+  shipmentId String   @map("shipment_id") @db.Uuid
+  eventTime  DateTime @map("event_time")
+  location   String?
+  status     String
+  message    String
+  
+  shipment   Shipment @relation(fields: [shipmentId], references: [id])
+
+  @@map("shipment_events")
+}
+
+model Inventory {
+  sku              String                  @id
+  name             String
+  availableQty     Int                     @map("available_qty") @default(0)
+  reservedQty      Int                     @map("reserved_qty") @default(0)
+  reorderThreshold Int                     @map("reorder_threshold")
+  
+  reservations     InventoryReservation[]
+
+  @@map("inventory")
+}
+
+model InventoryReservation {
+  id         String    @id @default(uuid()) @db.Uuid
+  sku        String
+  qty        Int
+  reason     String
+  createdAt  DateTime  @default(now()) @map("created_at")
+  releasedAt DateTime? @map("released_at")
+  
+  inventory  Inventory @relation(fields: [sku], references: [sku])
+
+  @@map("inventory_reservations")
+}
+
+enum ReturnStatus {
+  requested
+  approved
+  received
+  refunded
+  rejected
+}
+
+enum ReturnReasonCode {
+  wrong_item
+  damaged
+  late
+  changed_mind
+}
+
+model Return {
+  id          String           @id @default(uuid()) @db.Uuid
+  orderId     String           @map("order_id") @db.Uuid
+  status      ReturnStatus
+  reasonCode  ReturnReasonCode @map("reason_code")
+  details     String?
+  requestedAt DateTime         @default(now()) @map("requested_at")
+  resolvedAt  DateTime?        @map("resolved_at")
+  
+  order       Order            @relation(fields: [orderId], references: [id])
+
+  @@map("returns")
+}
+
+enum TicketType {
+  warehouse
+  carrier
+  billing
+  support
+}
+
+enum TicketPriority {
+  low
+  med
+  high
+}
+
+enum TicketStatus {
+  open
+  in_progress
+  done
+}
+
+model Ticket {
+  id        String         @id @default(uuid()) @db.Uuid
+  type      TicketType
+  priority  TicketPriority
+  title     String
+  body      String
+  status    TicketStatus   @default(open)
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  @@map("tickets")
+}
+
+model Policy {
+  id                     String @id @default(uuid()) @db.Uuid
+  countryCode            String @unique @map("country_code") @db.Char(2)
+  refundWindowDays       Int    @map("refund_window_days")
+  replacementWindowDays  Int    @map("replacement_window_days")
+  notes                  String
+
+  @@map("policies")
+}
+
+model KbDoc {
+  id        String   @id @default(uuid()) @db.Uuid
+  title     String
+  body      String
+  tags      String[] @default([])
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("kb_docs")
+}

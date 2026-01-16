@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+.idea
+*.iml
+*.log
+.DS_Store
+db_data/
