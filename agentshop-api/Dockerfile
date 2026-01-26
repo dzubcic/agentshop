@@ -32,13 +32,15 @@ RUN addgroup -g 1001 -S nodejs && \
 # Copy package files
 COPY package*.json ./
 
-# Install production dependencies only
-RUN npm ci --only=production
+# Install ALL dependencies (needed for tsx and prisma CLI)
+RUN npm ci
 
-# Copy built application and Prisma files
+# Copy built application, Prisma files, and source files
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY prisma ./prisma
+COPY tsconfig.json ./
+COPY src ./src
 
 # Change ownership
 RUN chown -R nodejs:nodejs /app
