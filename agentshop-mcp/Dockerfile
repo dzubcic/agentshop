@@ -1,33 +1,23 @@
-FROM node:20-slim AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
 COPY package*.json ./
 COPY tsconfig.json ./
+RUN npm ci
 
-# Install dependencies
-RUN npm install
-
-# Copy source code
 COPY src ./src
-
-# Build the project
 RUN npm run build
 
-# Stage 2: Runtime stage
-FROM node:20-slim
+FROM node:22-alpine
 
 WORKDIR /app
 
-# Copy package files
+ENV NODE_ENV=production
+
 COPY package*.json ./
+RUN npm ci --omit=dev && npm cache clean --force
 
-# Install only production dependencies
-RUN npm install --omit=dev
-
-# Copy compiled files from builder stage
 COPY --from=builder /app/build ./build
 
-# The MCP server communicates via stdio
 ENTRYPOINT ["node", "build/index.js"]

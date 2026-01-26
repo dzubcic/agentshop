@@ -1,24 +1,25 @@
 # Build stage
-FROM node:22 AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
-COPY tsconfig.json ./
 
-# Install dependencies
+# Install all dependencies (including devDependencies for build)
 RUN npm ci
 
-# Copy source and prisma files
+# Copy source and config files
+COPY tsconfig.json ./
 COPY src ./src
 COPY prisma ./prisma
 
-# Generate Prisma client
-RUN npx prisma generate
+# Generate Prisma client and build
+RUN npx prisma generate && \
+    npm run build
 
-# Build TypeScript
-RUN npm run build
+# Remove dev dependencies
+RUN npm prune --production
 
 # Production stage
 FROM node:22-alpine
@@ -29,27 +30,14 @@ WORKDIR /app
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001
 
-# Copy package files
-COPY package*.json ./
+# Copy with correct ownership from the start
+COPY --from=builder --chown=nodejs:nodejs /app/package*.json ./
+COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
+COPY --from=builder --chown=nodejs:nodejs /app/prisma ./prisma
 
-# Install ALL dependencies (needed for tsx and prisma CLI)
-RUN npm ci
-
-# Copy built application, Prisma files, and source files
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY prisma ./prisma
-COPY tsconfig.json ./
-COPY src ./src
-
-# Change ownership
-RUN chown -R nodejs:nodejs /app
-
-# Switch to non-root user
 USER nodejs
 
-# Expose port
 EXPOSE 8080
 
-# Start application
 CMD ["node", "dist/index.js"]
